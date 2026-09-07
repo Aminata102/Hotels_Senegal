@@ -67,7 +67,7 @@ class ChambreController extends Controller
         $this->verifierPermission($request);
 
         // Harmonisation de la valeur du prix (compatible prix_nuit et prix_nuitee)
-        $prixInput = $request->input('prix_nuit') ?? $request->input('prix_nuitee');
+        $prixInput = $request->input('prix') ?? $request->input('prix_nuit') ?? $request->input('prix_nuitee');
         $request->merge(['prix_nuit' => $prixInput]);
 
         $validator = Validator::make($request->all(), [
@@ -123,5 +123,29 @@ class ChambreController extends Controller
         $chambre->save();
 
         return response()->json($chambre);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $chambre = Chambre::find($id);
+
+        if (!$chambre) {
+            return response()->json(['message' => 'Chambre non trouvée'], 404);
+        }
+
+        $validated = $request->validate([
+            'statut' => 'sometimes|string',
+            'nom' => 'sometimes|string|max:255',
+            'type' => 'sometimes|string',
+            'prix' => 'sometimes|numeric',
+            'etage' => 'sometimes|integer',
+        ]);
+
+        $chambre->update($validated);
+
+        return response()->json([
+            'message' => 'Chambre mise à jour avec succès',
+            'data' => $chambre,
+        ], 200);
     }
 }
