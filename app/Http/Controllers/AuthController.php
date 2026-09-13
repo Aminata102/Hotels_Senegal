@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    /**
+     * Connexion de l'utilisateur
+     */
     public function login(Request $request)
     {
         $request->validate([
@@ -16,6 +18,7 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
+        // Chargement de l'utilisateur (avec la relation hôtel si elle existe)
         $user = User::where('email', $request->email)->first();
 
         // 1. Vérification de l'existence et du mot de passe
@@ -34,43 +37,35 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // On crée un jeton (Token) pour Flutter
+        // Création du jeton Sanctum
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'success' => true,
+            'message' => 'Connexion réussie',
             'token'   => $token,
-            'user'    => [
-                'id'        => $user->id,
-                'nom'       => $user->nom ?? $user->name,
-                'prenom'    => $user->prenom ?? '',
-                'email'     => $user->email,
-                'telephone' => $user->telephone,
-                'role'      => $user->role,
-                'actif'     => $user->actif,
-                'sms'       => $user->sms,
-                'hotel'     => $user->hotel,
-            ],
-        ]);
+            'user'    => $this->formatUserResponse($user),
+        ], 200);
     }
 
+    /**
+     * Inscription d'un nouvel utilisateur
+     */
     public function register(Request $request)
     {
-        // Validation des données entrantes depuis Flutter
         $request->validate([
             'nom'       => 'required|string|max:255',
             'prenom'    => 'nullable|string|max:255',
             'email'     => 'required|email|unique:users,email',
             'telephone' => 'required|string|max:20',
             'password'  => 'required|min:6',
-            // 👇 VOTRE LIGNE DE CODE ICI 👇
-            'role'      => 'required|string|in:administrateur,admin,gerant,gérant,receptionniste,caissier,housekeeping', // 👈 Validation stricte des rôles
-            'actif'     => 'required|boolean',
-            'sms'       => 'required|boolean',
+            'role'      => 'required|string|in:administrateur,admin,gerant,gérant,receptionniste,caissier,housekeeping,menage',
+            'actif'     => 'sometimes|boolean',
+            'sms'       => 'sometimes|boolean',
             'hotel'     => 'nullable|integer',
         ]);
 
-        // Séparation automatique du "Nom complet" s'il est envoyé dans un seul champ 'nom'
+        // Séparation du nom complet si nécessaire
         $nomComplet = trim($request->nom);
         $nom = $nomComplet;
         $prenom = $request->prenom ?? '';
@@ -87,9 +82,9 @@ class AuthController extends Controller
             'email'     => $request->email,
             'telephone' => $request->telephone,
             'password'  => Hash::make($request->password),
-            'role'      => $request->role,
-            'actif'     => $request->actif,
-            'sms'       => $request->sms,
+            'role'      => strtolower($request->role),
+            'actif'     => $request->input('actif', true),
+            'sms'       => $request->input('sms', false),
             'hotel'     => $request->hotel,
         ]);
 
@@ -99,7 +94,7 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'Compte créé avec succès',
             'token'   => $token,
-            'user'    => $user,
+            'user'    => $this->formatUserResponse($user),
         ], 201);
     }
 
@@ -140,9 +135,13 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Profil mis à jour avec succès',
-            'user'    => $user,
+            'user'    => $this->formatUserResponse($user),
         ]);
     }
+
+    /**
+     * Formate la réponse utilisateur de manière uniforme
+     */
     private function formatUserResponse(User $user): array
     {
         return [
@@ -151,9 +150,9 @@ class AuthController extends Controller
             'prenom'    => $user->prenom ?? '',
             'email'     => $user->email,
             'telephone' => $user->telephone,
-            'role'      => $user->role,
-            'actif'     => (bool) $user->actif,
-            'sms'       => (bool) $user->sms,
+            'role'      => strtolower($user->role ?? ''),
+            'actif'     => (bool) ($user->actif ?? true),
+            'sms'       => (bool) ($user->sms ?? false),
             'hotel'     => $user->hotel,
         ];
     }
